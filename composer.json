@@ -1,0 +1,38 @@
+{
+  "name": "wanphp/libray-user",
+  "type": "wanphp-libray",
+  "description": "用户操作接口",
+  "keywords": [
+    "Weixin",
+    "MiniProgram",
+    "WeCharPay"
+  ],
+  "homepage": "https://www.wanphp.com",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "火子",
+      "email": "wanphp@outlook.com"
+    }
+  ],
+  "require": {
+    "wanphp/installers": "*",
+    "guzzlehttp/guzzle": "^7.1",
+    "predis/predis": "^1.1.0",
+    "ext-openssl": "*",
+    "ext-dom": "*",
+    "ext-libxml": "*",
+    "ext-simplexml": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Wanphp\\Libray\\User\\": "/"
+    }
+  },
+  "repositories": {
+    "packagist": {
+      "type": "composer",
+      "url": "https://mirrors.aliyun.com/composer/"
+    }
+  }
+}
