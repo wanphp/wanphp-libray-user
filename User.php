@@ -7,44 +7,77 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use Predis\Client as Redis;
+use Predis\ClientInterface;
 
 class User
 {
   private array $headers;
+  private string $appId;
+  private string $appSecret;
+  private string $apiUri;
   private Client $client;
+  private ClientInterface $redis;
 
   /**
-   * @param string $appId
-   * @param string $appSecret
-   * @param string $apiUri
+   * @param array $oauth2Config
    * @param array $redisConfig
    * @throws Exception
    */
-  public function __construct(string $appId, string $appSecret, string $apiUri, array $redisConfig)
+  public function __construct(array $oauth2Config, array $redisConfig)
   {
+    $this->appId = $oauth2Config['appId'];
+    $this->appSecret = $oauth2Config['appSecret'];
+    $this->apiUri = $oauth2Config['apiUri'];
 
-    $redis = new Redis($redisConfig['parameters'], $redisConfig['options']);
-    $this->client = new Client(['base_uri' => $apiUri]);
+    $this->redis = new Redis($redisConfig['parameters'], $redisConfig['options']);
+    $this->client = new Client(['base_uri' => $this->apiUri]);
 
     //数据库取缓存
-    $access_token = $redis->get('wanphp_access_token');
+    $access_token = $this->redis->get('wanphp_client_access_token');
     if (!$access_token) {
       $data = [
         'grant_type' => 'client_credentials',
-        'client_id' => $appId,
-        'client_secret' => $appSecret,
+        'client_id' => $this->appId,
+        'client_secret' => $this->appSecret,
         'scope' => ''
       ];
       $result = $this->request($this->client, 'POST', '/auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $redis->setex('wanphp_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex('wanphp_client_access_token', $result['expires_in'], $result['access_token']);
         $access_token = $result['access_token'];
       }
     }
-
     $this->headers = [
       'Authorization' => 'Bearer ' . $access_token
     ];
+  }
+
+  /**
+   * @param string $code
+   * @param string $redirect_uri
+   * @return string
+   * @throws Exception
+   */
+  public function getUserAccessToken(string $code, string $redirect_uri): string
+  {
+    //数据库取缓存
+    $access_token = $this->redis->get('wanphp_user_access_token');
+    if (!$access_token) {
+      $data = [
+        'grant_type' => 'authorization_code',
+        'client_id' => $this->appId,
+        'client_secret' => $this->appSecret,
+        'redirect_uri' => $redirect_uri,
+        'code' => $code
+      ];
+      $result = $this->request($this->client, 'POST', '/auth/accessToken', ['json' => $data]);
+      if (isset($result['access_token'])) {
+        $this->redis->setex('wanphp_client_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex('wanphp_client_refresh_token', $result['expires_in'], $result['refresh_token']);
+        $access_token = $result['access_token'];
+      }
+    }
+    return $access_token;
   }
 
   /**
