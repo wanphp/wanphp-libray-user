@@ -35,7 +35,7 @@ class User
         'client_secret' => $appSecret,
         'scope' => ''
       ];
-      $result = $this->request($this->client, 'POST', '/auth/accessToken', ['body' => json_encode($data, JSON_UNESCAPED_UNICODE), 'headers' => ['Accept' => 'application/json']]);
+      $result = $this->request($this->client, 'POST', '/auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
         $redis->setex('wanphp_access_token', $result['expires_in'], $result['access_token']);
         $access_token = $result['access_token'];
@@ -43,7 +43,6 @@ class User
     }
 
     $this->headers = [
-      'Accept' => 'application/json',
       'Authorization' => 'Bearer ' . $access_token
     ];
   }
