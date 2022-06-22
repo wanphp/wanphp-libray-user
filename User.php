@@ -19,15 +19,15 @@ class User
   private ClientInterface $redis;
 
   /**
-   * @param array $oauth2Config
+   * @param array $userServerConfig
    * @param array $redisConfig
    * @throws Exception
    */
-  public function __construct(array $oauth2Config, array $redisConfig)
+  public function __construct(array $userServerConfig, array $redisConfig)
   {
-    $this->appId = $oauth2Config['appId'];
-    $this->appSecret = $oauth2Config['appSecret'];
-    $this->apiUri = $oauth2Config['apiUri'];
+    $this->appId = $userServerConfig['appId'];
+    $this->appSecret = $userServerConfig['appSecret'];
+    $this->apiUri = $userServerConfig['apiUri'];
 
     $this->redis = new Redis($redisConfig['parameters'], $redisConfig['options']);
     $this->client = new Client(['base_uri' => $this->apiUri]);
@@ -118,7 +118,20 @@ class User
   public function getUsers(array $uid): array
   {
     return $this->request($this->client, 'POST', '/user/get', [
-      'json' => ['id' => $uid],
+      'json' => ['uid' => $uid],
+      'headers' => $this->headers
+    ]);
+  }
+
+  /**
+   * 获取用户信息
+   * @param int $uid
+   * @return array
+   * @throws Exception
+   */
+  public function getUser(int $uid): array
+  {
+    return $this->request($this->client, 'GET', '/user/get/' . $uid, [
       'headers' => $this->headers
     ]);
   }
