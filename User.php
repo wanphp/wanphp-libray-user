@@ -14,6 +14,7 @@ class User
   private array $headers;
   private string $appId;
   private string $appSecret;
+  private string $oauthServer;
   private string $apiUri;
   private Client $client;
   private ClientInterface $redis;
@@ -27,6 +28,7 @@ class User
   {
     $this->appId = $userServerConfig['appId'];
     $this->appSecret = $userServerConfig['appSecret'];
+    $this->oauthServer = $userServerConfig['oauthServer'];
     $this->apiUri = $userServerConfig['apiUri'];
 
     $this->redis = new Redis($redisConfig['parameters'], $redisConfig['options']);
@@ -41,7 +43,7 @@ class User
         'client_secret' => $this->appSecret,
         'scope' => ''
       ];
-      $result = $this->request($this->client, 'POST', '/auth/accessToken', ['json' => $data]);
+      $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
         $this->redis->setex('wanphp_client_access_token', $result['expires_in'], $result['access_token']);
         $access_token = $result['access_token'];
@@ -53,12 +55,13 @@ class User
   }
 
   /**
+   * 用户授权操作，第二步：通过code换取网页授权access_token
    * @param string $code
    * @param string $redirect_uri
    * @return string
    * @throws Exception
    */
-  public function getUserAccessToken(string $code, string $redirect_uri): string
+  public function getOauthAccessToken(string $code, string $redirect_uri): string
   {
     //数据库取缓存
     $access_token = $this->redis->get('wanphp_user_access_token');
@@ -70,10 +73,10 @@ class User
         'redirect_uri' => $redirect_uri,
         'code' => $code
       ];
-      $result = $this->request($this->client, 'POST', '/auth/accessToken', ['json' => $data]);
+      $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $this->redis->setex('wanphp_client_access_token', $result['expires_in'], $result['access_token']);
-        $this->redis->setex('wanphp_client_refresh_token', $result['expires_in'], $result['refresh_token']);
+        $this->redis->setex('wanphp_user_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex('wanphp_user_refresh_token', $result['expires_in'], $result['refresh_token']);
         $access_token = $result['access_token'];
       }
     }
@@ -81,21 +84,53 @@ class User
   }
 
   /**
-   * 添加用户
+   * 用户授权操作，第三步：获取用户信息
+   * @param $access_token
+   * @return array
+   * @throws Exception
+   */
+  public function getOauthUserinfo(string $access_token): array
+  {
+    return $this->request($this->client, 'GET', 'user', [
+      'headers' => [
+        'Authorization' => 'Bearer ' . $access_token
+      ]
+    ]);
+  }
+
+  /**
+   * 用户授权操作，更新用户信息
+   * @param string $access_token
+   * @param array $data
+   * @return array
+   * @throws Exception
+   */
+  public function updateOauthUser(string $access_token, array $data): array
+  {
+    return $this->request($this->client, 'PATCH', 'user', [
+      'json' => $data,
+      'headers' => [
+        'Authorization' => 'Bearer ' . $access_token
+      ]
+    ]);
+  }
+
+  /**
+   * 客户端，添加用户
    * @param $data
    * @return array
    * @throws Exception
    */
   public function addUser($data): array
   {
-    return $this->request($this->client, 'POST', '/user', [
+    return $this->request($this->client, 'POST', 'user', [
       'json' => $data,
       'headers' => $this->headers
     ]);
   }
 
   /**
-   * 更新用户信息
+   * 客户端，更新用户信息
    * @param int $uid
    * @param array $data
    * @return array
@@ -103,41 +138,41 @@ class User
    */
   public function updateUser(int $uid, array $data): array
   {
-    return $this->request($this->client, 'PUT', '/user/' . $uid, [
+    return $this->request($this->client, 'PUT', 'user/' . $uid, [
       'json' => $data,
       'headers' => $this->headers
     ]);
   }
 
   /**
-   * 获取用户信息
+   * 客户端，获取用户信息
    * @param array $uid
    * @return array
    * @throws Exception
    */
   public function getUsers(array $uid): array
   {
-    return $this->request($this->client, 'POST', '/user/get', [
+    return $this->request($this->client, 'POST', 'user/get', [
       'json' => ['uid' => $uid],
       'headers' => $this->headers
     ]);
   }
 
   /**
-   * 获取用户信息
+   * 客户端，获取用户信息
    * @param int $uid
    * @return array
    * @throws Exception
    */
   public function getUser(int $uid): array
   {
-    return $this->request($this->client, 'GET', '/user/get/' . $uid, [
+    return $this->request($this->client, 'GET', 'user/get/' . $uid, [
       'headers' => $this->headers
     ]);
   }
 
   /**
-   * 搜索用户
+   * 客户端，搜索用户
    * @param string $keyword
    * @param int $page
    * @return array
@@ -145,7 +180,7 @@ class User
    */
   public function searchUsers(string $keyword, int $page = 0): array
   {
-    return $this->request($this->client, 'GET', '/user/search', [
+    return $this->request($this->client, 'GET', 'user/search', [
       'query' => ['q' => $keyword, 'page' => $page],
       'headers' => $this->headers
     ]);
