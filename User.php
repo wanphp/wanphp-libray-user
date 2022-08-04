@@ -4,13 +4,16 @@ namespace Wanphp\Libray\User;
 
 use Exception;
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Exception\RequestException;
-use Predis\Client as Redis;
 use Predis\ClientInterface;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Wanphp\Libray\slim\HttpTrait;
+use Wanphp\Libray\Slim\Setting;
 
 class User
 {
+  use HttpTrait;
+
   private array $headers;
   private string $appId;
   private string $appSecret;
@@ -20,22 +23,23 @@ class User
   private ClientInterface $redis;
 
   /**
-   * @param array $userServerConfig
-   * @param array $redisConfig
+   * @param Setting $setting
+   * @param ClientInterface $redis
    * @throws Exception
    */
-  public function __construct(array $userServerConfig, array $redisConfig)
+  public function __construct(Setting $setting, ClientInterface $redis)
   {
+    $userServerConfig = $setting->get('userServer');
     $this->appId = $userServerConfig['appId'];
     $this->appSecret = $userServerConfig['appSecret'];
     $this->oauthServer = $userServerConfig['oauthServer'];
     $this->apiUri = $userServerConfig['apiUri'];
 
-    $this->redis = new Redis($redisConfig['parameters'], $redisConfig['options']);
+    $this->redis = $redis;
     $this->client = new Client(['base_uri' => $this->apiUri]);
 
     //数据库取缓存
-    $access_token = $this->redis->get('wanphp_client_access_token');
+    $access_token = $this->redis->get('wanphp_user_client_access_token');
     if (!$access_token) {
       $data = [
         'grant_type' => 'client_credentials',
@@ -43,15 +47,30 @@ class User
         'client_secret' => $this->appSecret,
         'scope' => ''
       ];
-      $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
+      $result = $this->request($this->client, 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $this->redis->setex('wanphp_client_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex('wanphp_user_client_access_token', $result['expires_in'], $result['access_token']);
         $access_token = $result['access_token'];
       }
     }
     $this->headers = [
       'Authorization' => 'Bearer ' . $access_token
     ];
+  }
+
+  /**
+   * 用户授权操作，第一步：资源服务器，前往认证服务器获取code
+   * @throws Exception
+   */
+  public function oauthRedirect(Request $request, Response $response): Response
+  {
+    $queryParams = $request->getQueryParams();
+    $redirectUri = $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() . $request->getUri()->getPath();
+    $scope = $queryParams['scope'] ?? '';
+    $state = bin2hex(random_bytes(8));
+    $this->redis->setex($state, 300, 'state');
+    $url = $this->oauthServer . 'auth/authorize?client_id=' . $this->appId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=' . $scope . '&state=' . $state;
+    return $response->withHeader('Location', $url)->withStatus(301);
   }
 
   /**
@@ -85,7 +104,7 @@ class User
 
   /**
    * 用户授权操作，第三步：获取用户信息
-   * @param $access_token
+   * @param string $access_token
    * @return array
    * @throws Exception
    */
@@ -184,46 +203,5 @@ class User
       'query' => ['q' => $keyword, 'page' => $page],
       'headers' => $this->headers
     ]);
-  }
-
-  /**
-   * @param Client $client
-   * @param string $method
-   * @param string $uri
-   * @param array $options
-   * @return array
-   * @throws Exception
-   */
-  private function request(Client $client, string $method, string $uri, array $options): array
-  {
-    try {
-      $resp = $client->request($method, $uri, $options);
-      $body = $resp->getBody()->getContents();
-      if ($resp->getStatusCode() == 200) {
-        $content_type = $resp->getHeaderLine('Content-Type');
-        if (str_contains($content_type, 'application/json') || str_contains($content_type, 'text/plain')) {
-          $json = json_decode($body, true);
-          if (json_last_error() === JSON_ERROR_NONE) {
-            if (isset($json['errMsg'])) {
-              throw new Exception($json['errMsg'], 400);
-            } else {
-              return $json;
-            }
-          }
-        }
-        return ['content_type' => $content_type, 'content_disposition' => $resp->getHeaderLine('Content-disposition'), 'body' => $body];
-      } else {
-        throw new Exception($resp->getReasonPhrase(), $resp->getStatusCode());
-      }
-    } catch (RequestException $e) {
-      $message = $e->getMessage();
-      if ($e->hasResponse()) {
-        $message .= "\n" . $e->getResponse()->getStatusCode() . ' ' . $e->getResponse()->getReasonPhrase();
-        $message .= "\n" . $e->getResponse()->getBody();
-      }
-      throw new Exception($message);
-    } catch (GuzzleException $e) {
-      throw new Exception($e->getMessage(), $e->getCode());
-    }
   }
 }
