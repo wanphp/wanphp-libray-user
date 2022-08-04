@@ -7,7 +7,7 @@ use GuzzleHttp\Client;
 use Predis\ClientInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Wanphp\Libray\slim\HttpTrait;
+use Wanphp\Libray\Slim\HttpTrait;
 use Wanphp\Libray\Slim\Setting;
 
 class User
