@@ -9,8 +9,9 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Wanphp\Libray\Slim\HttpTrait;
 use Wanphp\Libray\Slim\Setting;
+use Wanphp\Libray\Slim\WpUserInterface;
 
-class User
+class User implements WpUserInterface
 {
   use HttpTrait;
 
@@ -201,6 +202,20 @@ class User
   {
     return $this->request($this->client, 'GET', 'user/search', [
       'query' => ['q' => $keyword, 'page' => $page],
+      'headers' => $this->headers
+    ]);
+  }
+
+  /**
+   * @param array $uidArr
+   * @param array $msgData
+   * @return array
+   * @throws Exception
+   */
+  public function sendMessage(array $uidArr, array $msgData): array
+  {
+    return $this->request($this->client, 'POST', 'user/sendMsg', [
+      'json' => ['users' => $uidArr, 'data' => $msgData],
       'headers' => $this->headers
     ]);
   }
