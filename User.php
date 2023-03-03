@@ -219,4 +219,19 @@ class User implements WpUserInterface
       'headers' => $this->headers
     ]);
   }
+
+  public function membersTagging(string $uid, int $tagId): array
+  {
+    return ['errcode' => 1, 'errmsg' => '客户端无权调用此方法'];
+  }
+
+  public function membersUnTagging(string $uid, int $tagId): array
+  {
+    return ['errcode' => 1, 'errmsg' => '客户端无权调用此方法'];
+  }
+
+  public function userLogin(string $account, string $password): int|string
+  {
+    return '客户端无权做用户登录认证';
+  }
 }
