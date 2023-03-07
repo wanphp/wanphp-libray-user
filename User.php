@@ -40,7 +40,7 @@ class User implements WpUserInterface
     $this->client = new Client(['base_uri' => $this->apiUri]);
 
     //数据库取缓存
-    $access_token = $this->redis->get('wanphp_user_client_access_token');
+    $access_token = $this->redis->get($this->appId . '_wanphp_user_client_access_token');
     if (!$access_token) {
       $data = [
         'grant_type' => 'client_credentials',
@@ -50,7 +50,7 @@ class User implements WpUserInterface
       ];
       $result = $this->request($this->client, 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $this->redis->setex('wanphp_user_client_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex($this->appId . '_wanphp_user_client_access_token', $result['expires_in'], $result['access_token']);
         $access_token = $result['access_token'];
       }
     }
@@ -220,14 +220,32 @@ class User implements WpUserInterface
     ]);
   }
 
+  /**
+   * @param string $uid 用户ID
+   * @param int $tagId 公众号标签ID
+   * @return array
+   * @throws Exception
+   */
   public function membersTagging(string $uid, int $tagId): array
   {
-    return ['errcode' => 1, 'errmsg' => '客户端无权调用此方法'];
+    return $this->request($this->client, 'PATCH', 'user/tag', [
+      'json' => ['uid' => $uid, 'tagId' => $tagId],
+      'headers' => $this->headers
+    ]);
   }
 
+  /**
+   * @param string $uid 用户ID
+   * @param int $tagId 公众号标签ID
+   * @return array
+   * @throws Exception
+   */
   public function membersUnTagging(string $uid, int $tagId): array
   {
-    return ['errcode' => 1, 'errmsg' => '客户端无权调用此方法'];
+    return $this->request($this->client, 'DELETE', 'user/tag', [
+      'json' => ['uid' => $uid, 'tagId' => $tagId],
+      'headers' => $this->headers
+    ]);
   }
 
   public function userLogin(string $account, string $password): int|string

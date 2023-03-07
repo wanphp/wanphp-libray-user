@@ -18,7 +18,7 @@
   "require": {
     "wanphp/installers": "*",
     "wanphp/libray-slim": "^1.0.0",
-    "predis/predis": "^1.1.0",
+    "predis/predis": "^2.1.0",
     "ext-openssl": "*",
     "ext-dom": "*",
     "ext-libxml": "*",
@@ -27,12 +27,6 @@
   "autoload": {
     "psr-4": {
       "Wanphp\\Libray\\User\\": "/"
-    }
-  },
-  "repositories": {
-    "packagist": {
-      "type": "composer",
-      "url": "https://mirrors.aliyun.com/composer/"
     }
   }
 }
