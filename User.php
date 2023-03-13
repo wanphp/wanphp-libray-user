@@ -68,8 +68,7 @@ class User implements WpUserInterface
     $queryParams = $request->getQueryParams();
     $redirectUri = $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() . $request->getUri()->getPath();
     $scope = $queryParams['scope'] ?? '';
-    $state = bin2hex(random_bytes(8));
-    $this->redis->setex($state, 300, 'state');
+    $state = $queryParams['state'] ?? '';
     $url = $this->oauthServer . 'auth/authorize?client_id=' . $this->appId . '&redirect_uri=' . urlencode($redirectUri) . '&response_type=code&scope=' . $scope . '&state=' . $state;
     return $response->withHeader('Location', $url)->withStatus(301);
   }
@@ -84,7 +83,7 @@ class User implements WpUserInterface
   public function getOauthAccessToken(string $code, string $redirect_uri): string
   {
     //数据库取缓存
-    $access_token = $this->redis->get('wanphp_user_access_token');
+    $access_token = $this->redis->get($this->appId . '_wanphp_user_access_token');
     if (!$access_token) {
       $data = [
         'grant_type' => 'authorization_code',
@@ -95,8 +94,8 @@ class User implements WpUserInterface
       ];
       $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $this->redis->setex('wanphp_user_access_token', $result['expires_in'], $result['access_token']);
-        $this->redis->setex('wanphp_user_refresh_token', $result['expires_in'], $result['refresh_token']);
+        $this->redis->setex($this->appId . '_wanphp_user_access_token', $result['expires_in'], $result['access_token']);
+        $this->redis->setex($this->appId . '_wanphp_user_refresh_token', $result['expires_in'], $result['refresh_token']);
         $access_token = $result['access_token'];
       }
     }
