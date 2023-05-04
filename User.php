@@ -15,12 +15,12 @@ class User implements WpUserInterface
 {
   use HttpTrait;
 
-  private array $headers;
+  protected array $headers;
   private string $appId;
   private string $appSecret;
   private string $oauthServer;
   private string $apiUri;
-  private Client $client;
+  protected Client $client;
   private ClientInterface $redis;
 
   /**
