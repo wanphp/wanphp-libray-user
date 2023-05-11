@@ -4,9 +4,9 @@ namespace Wanphp\Libray\User;
 
 use Exception;
 use GuzzleHttp\Client;
-use Predis\ClientInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Wanphp\Libray\Slim\CacheInterface;
 use Wanphp\Libray\Slim\HttpTrait;
 use Wanphp\Libray\Slim\Setting;
 use Wanphp\Libray\Slim\WpUserInterface;
@@ -21,14 +21,14 @@ class User implements WpUserInterface
   private string $oauthServer;
   private string $apiUri;
   protected Client $client;
-  private ClientInterface $redis;
+  private CacheInterface $cache;
 
   /**
    * @param Setting $setting
-   * @param ClientInterface $redis
+   * @param CacheInterface $cache
    * @throws Exception
    */
-  public function __construct(Setting $setting, ClientInterface $redis)
+  public function __construct(Setting $setting, CacheInterface $cache)
   {
     $userServerConfig = $setting->get('userServer');
     $this->appId = $userServerConfig['appId'];
@@ -36,11 +36,11 @@ class User implements WpUserInterface
     $this->oauthServer = $userServerConfig['oauthServer'];
     $this->apiUri = $userServerConfig['apiUri'];
 
-    $this->redis = $redis;
+    $this->cache = $cache;
     $this->client = new Client(['base_uri' => $this->apiUri]);
 
     //数据库取缓存
-    $access_token = $this->redis->get($this->appId . '_wanphp_user_client_access_token');
+    $access_token = $this->cache->get($this->appId . '_wanphp_user_client_access_token');
     if (!$access_token) {
       $data = [
         'grant_type' => 'client_credentials',
@@ -50,7 +50,7 @@ class User implements WpUserInterface
       ];
       $result = $this->request($this->client, 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
       if (isset($result['access_token'])) {
-        $this->redis->setex($this->appId . '_wanphp_user_client_access_token', $result['expires_in'], $result['access_token']);
+        $this->cache->set($this->appId . '_wanphp_user_client_access_token', $result['access_token'], $result['expires_in']);
         $access_token = $result['access_token'];
       }
     }
@@ -83,19 +83,30 @@ class User implements WpUserInterface
   public function getOauthAccessToken(string $code, string $redirect_uri): string
   {
     //数据库取缓存
-    $access_token = $this->redis->get($this->appId . '_wanphp_user_access_token');
+    $access_token = $this->cache->get($this->appId . '_wanphp_user_access_token');
     if (!$access_token) {
-      $data = [
-        'grant_type' => 'authorization_code',
-        'client_id' => $this->appId,
-        'client_secret' => $this->appSecret,
-        'redirect_uri' => $redirect_uri,
-        'code' => $code
-      ];
-      $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
+      $refresh_token = $this->cache->get($this->appId . '_wanphp_user_refresh_token');
+      if ($refresh_token) {
+        $data = [
+          'grant_type' => 'refresh_token',
+          'client_id' => $this->appId,
+          'client_secret' => $this->appSecret,
+          'refresh_token' => $refresh_token
+        ];
+        $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/refreshAccessToken', ['json' => $data]);
+      } else {
+        $data = [
+          'grant_type' => 'authorization_code',
+          'client_id' => $this->appId,
+          'client_secret' => $this->appSecret,
+          'redirect_uri' => $redirect_uri,
+          'code' => $code
+        ];
+        $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
+      }
       if (isset($result['access_token'])) {
-        $this->redis->setex($this->appId . '_wanphp_user_access_token', $result['expires_in'], $result['access_token']);
-        $this->redis->setex($this->appId . '_wanphp_user_refresh_token', $result['expires_in'], $result['refresh_token']);
+        $this->cache->set($this->appId . '_wanphp_user_access_token', $result['access_token'], $result['expires_in']);
+        $this->cache->set($this->appId . '_wanphp_user_refresh_token', $result['refresh_token'], $result['expires_in']);
         $access_token = $result['access_token'];
       }
     }
@@ -165,14 +176,14 @@ class User implements WpUserInterface
 
   /**
    * 客户端，获取用户信息
-   * @param array $uid
+   * @param array $uidArr
    * @return array
    * @throws Exception
    */
-  public function getUsers(array $uid): array
+  public function getUsers(array $uidArr): array
   {
     return $this->request($this->client, 'POST', 'user/get', [
-      'json' => ['uid' => $uid],
+      'json' => ['uid' => $uidArr],
       'headers' => $this->headers
     ]);
   }
