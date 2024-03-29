@@ -82,35 +82,16 @@ class User implements WpUserInterface
    */
   public function getOauthAccessToken(string $code, string $redirect_uri): string
   {
-    //数据库取缓存
-    $access_token = $this->cache->get($this->appId . '_wanphp_user_access_token');
-    if (!$access_token) {
-      $refresh_token = $this->cache->get($this->appId . '_wanphp_user_refresh_token');
-      if ($refresh_token) {
-        $data = [
-          'grant_type' => 'refresh_token',
-          'client_id' => $this->appId,
-          'client_secret' => $this->appSecret,
-          'refresh_token' => $refresh_token
-        ];
-        $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/refreshAccessToken', ['json' => $data]);
-      } else {
-        $data = [
-          'grant_type' => 'authorization_code',
-          'client_id' => $this->appId,
-          'client_secret' => $this->appSecret,
-          'redirect_uri' => $redirect_uri,
-          'code' => $code
-        ];
-        $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', ['json' => $data]);
-      }
-      if (isset($result['access_token'])) {
-        $this->cache->set($this->appId . '_wanphp_user_access_token', $result['access_token'], $result['expires_in']);
-        $this->cache->set($this->appId . '_wanphp_user_refresh_token', $result['refresh_token'], $result['expires_in']);
-        $access_token = $result['access_token'];
-      }
-    }
-    return $access_token;
+    $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/accessToken', [
+      'json' => [
+        'grant_type' => 'authorization_code',
+        'client_id' => $this->appId,
+        'client_secret' => $this->appSecret,
+        'redirect_uri' => $redirect_uri,
+        'code' => $code
+      ]
+    ]);
+    return $result['access_token'] ?? '';
   }
 
   /**
