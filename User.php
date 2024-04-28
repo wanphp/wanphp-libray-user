@@ -91,6 +91,10 @@ class User implements WpUserInterface
         'code' => $code
       ]
     ]);
+    if (isset($result['access_token'])) {
+      $this->cache->set(session_id() . $this->appId . '_wanphp_user_access_token', $result['access_token'], $result['expires_in']);
+      $this->cache->set(session_id() . $this->appId . '_wanphp_user_refresh_token', $result['refresh_token'], $result['expires_in']);
+    }
     return $result['access_token'] ?? '';
   }
 
@@ -242,5 +246,37 @@ class User implements WpUserInterface
   public function userLogin(string $account, string $password): int|string
   {
     return '客户端无权做用户登录认证';
+  }
+
+  /**
+   * 检查用户授权码
+   * @inheritDoc
+   */
+  public function checkOauthUser(): string
+  {
+    //取缓存
+    $cache_access_token = session_id() . $this->appId . '_wanphp_user_access_token';
+    $access_token = $this->cache->get($cache_access_token);
+    if (!$access_token) {
+      $cache_refresh_token = session_id() . $this->appId . '_wanphp_user_refresh_token';
+      $refresh_token = $this->cache->get($cache_refresh_token);
+      if ($refresh_token) {
+        $data = [
+          'grant_type' => 'refresh_token',
+          'client_id' => $this->appId,
+          'client_secret' => $this->appSecret,
+          'refresh_token' => $refresh_token
+        ];
+        $result = $this->request(new Client(), 'POST', $this->oauthServer . 'auth/refreshAccessToken', ['json' => $data]);
+        if (isset($result['access_token'])) {
+          $this->cache->set($cache_access_token, $result['access_token'], $result['expires_in']);
+          $this->cache->set($cache_refresh_token, $result['refresh_token'], $result['expires_in']);
+        }
+        return $result['access_token'] ?? '';
+      } else {
+        return '';
+      }
+    }
+    return $access_token;
   }
 }
