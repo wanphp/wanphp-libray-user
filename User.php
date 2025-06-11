@@ -6,7 +6,7 @@ use Exception;
 use GuzzleHttp\Client;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Wanphp\Libray\Slim\CacheInterface;
+use Psr\SimpleCache\CacheInterface;
 use Wanphp\Libray\Slim\HttpTrait;
 use Wanphp\Libray\Slim\Setting;
 use Wanphp\Libray\Slim\WpUserInterface;
